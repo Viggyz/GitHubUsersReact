@@ -1,9 +1,60 @@
 import { Container, Box, Typography, TextField } from "@mui/material";
+import { useCallback, useState } from 'react';
+import debounce from 'lodash/debounce';
+import axios from 'axios';
 
-import { UsersDisplay } from "./Components/UsersDisplay";
+
+import { UsersDisplay } from "./components/UsersDisplay";
 
 function App()
 {
+  const [searchVal, setSearchVal] = useState("");
+  const [userData, setUserData] = useState([]);
+  const [errMess, setErrMess] = useState("")
+  const [userCount, setUserCount] = useState(false);
+
+  const getData = async (data) =>
+  {
+    if (data.length > 2) {
+      try {
+        const userResponse = await axios.post('http://localhost:8000/api/search',
+          {
+            type: 'users',
+            text: data
+          }
+        );
+        setUserData(userResponse.data.users);
+        if (userResponse.data.users.length === 0)
+          setUserCount(true);
+        else
+          setUserCount(false);
+      }
+      catch (err) {
+        if (err.response.status === 429) {
+          setErrMess("Rate Limit Exceeded");
+          setUserData([]);
+        }
+      }
+    }
+    else {
+      if (data.length !== 0)
+        setErrMess("Characters must be between 3 and 39 characters");
+      setUserData([]);
+      setUserCount(false)
+    }
+  }
+
+  const debouncedCall = useCallback(debounce(getData, 200, { trailing: true }), [])
+
+  const updateText = async (event) =>
+  {
+    setSearchVal(event.target.value);
+    setErrMess("");
+    debouncedCall(event.target.value);
+  }
+
+
+
   return (
     <Container maxwidth="sm">
       <Box sx={{
@@ -11,15 +62,21 @@ function App()
         flexDirection: "column",
         // bgcolor: "lightblue"
       }}>
-        <Box>
-          <Typography variant="h2" >
-            GitHub User Search
+        <Typography variant="h2" >
+          GitHub User Search
+        </Typography>
+        <TextField fullWidth label="" value={searchVal} onChange={updateText} />
+        <Typography variant="p" color="error">
+          {errMess}
+        </Typography>
+        {userCount &&
+          <Typography variant="h5" >
+            No Users Found
           </Typography>
-        </Box>
-        <TextField fullWidth label="Username" />
+        }
       </Box>
       <Box>
-        <UsersDisplay />
+        <UsersDisplay userData={userData} />
       </Box>
     </Container >
   );
